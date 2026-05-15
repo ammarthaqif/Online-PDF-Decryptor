@@ -44,7 +44,7 @@ export default function App() {
         time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
       },
       ...prev
-    ].slice(0, 15)); // Keep last 15 logs for researcher visibility
+    ].slice(0, 30)); // Expanded log history for researcher tracking
   }, []);
 
   useEffect(() => {
@@ -358,10 +358,18 @@ export default function App() {
             </button>
             
             <div className="mt-10 pt-10 border-t border-slate-800/50 z-10 relative">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Parallel Cluster Health</span>
+                <div className="flex gap-1">
+                  {[1,2,3].map(i => (
+                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+                  ))}
+                </div>
+              </div>
               <p className="text-[11px] text-indigo-300 font-medium leading-relaxed bg-indigo-500/5 p-5 rounded-2xl border border-indigo-500/10">
-                System detection: <span className="text-white font-mono">Acrobat X+ Standard Encrypted</span>
+                PDP Cluster: <span className="text-white font-mono">Alpha / Beta / Gamma</span>
                 <br/>
-                <span className="mt-3 block opacity-60 italic text-[10px]">Note: Handshakes occur strictly on local memory layers.</span>
+                <span className="mt-3 block opacity-60 italic text-[10px]">Active Entropy: Verified Signal • Threads: Multicore</span>
               </p>
             </div>
 
@@ -435,9 +443,9 @@ export default function App() {
             <div className="pt-8 border-t border-indigo-200">
               <div className="flex items-center gap-2 mb-4">
                 <Terminal className="w-4 h-4 text-indigo-600" />
-                <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest">Real-time Log</span>
+                <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-widest">Parallel Stream Diagnostics</span>
               </div>
-              <div className="h-32 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+              <div className="h-64 overflow-y-auto custom-scrollbar space-y-2 pr-2">
                 {logs.map(log => (
                   <div key={log.id} className="text-[10px] font-mono leading-tight flex gap-3 p-2 bg-white/50 rounded-lg">
                     <span className="text-slate-400 font-medium">[{log.time}]</span>

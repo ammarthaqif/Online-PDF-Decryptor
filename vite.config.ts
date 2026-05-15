@@ -22,7 +22,6 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'pdf-vendor': ['qpdf-wasm'],
             'ui-vendor': ['react', 'react-dom', 'motion', 'lucide-react', 'react-dropzone'],
           },
         },
