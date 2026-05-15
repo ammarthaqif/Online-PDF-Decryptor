@@ -175,6 +175,10 @@ export default function App() {
               )} />
               {window.crossOriginIsolated ? "Secure & Isolated" : "Standard Mode"}
             </span>
+            <div className="mt-1 flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 border border-indigo-100 rounded-lg">
+              <RefreshCw className="w-2 h-2 text-indigo-500 animate-spin-slow" />
+              <span className="text-[8px] font-black uppercase text-indigo-600">Parallel Engine Active</span>
+            </div>
             {!window.crossOriginIsolated && (
               <a 
                 href={window.location.href} 

@@ -7,6 +7,8 @@
   
   --radius-3xl: 1.5rem;
   --radius-4xl: 2rem;
+
+  --animate-spin-slow: spin 3s linear infinite;
 }
 
 :root {

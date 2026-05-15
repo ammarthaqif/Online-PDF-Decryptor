@@ -1,9 +1,69 @@
 import { PDFDocument } from 'pdf-lib';
 
 /**
- * Decrypts a PDF file. 
- * Tries pdf-lib first (no WASM/Isolation needed for standard passwords).
- * Falls back to qpdf-wasm for advanced encryption removal.
+ * Concurrent Decryption Specialized Engines
+ */
+
+async function decryptWithPdfLib(
+  fileData: Uint8Array,
+  password?: string,
+  log?: (msg: string) => void
+): Promise<Uint8Array> {
+  try {
+    log?.('Initializing Primary Buffer (pdf-lib)...');
+    const pdfDoc = await (PDFDocument as any).load(fileData, { 
+      password,
+      ignoreEncryption: false 
+    });
+    log?.('Schema validation passed.');
+    const saved = await pdfDoc.save();
+    log?.('Reconstruction complete.');
+    return saved;
+  } catch (err: any) {
+    log?.(`Rejected: ${err.message.slice(0, 30)}...`);
+    throw err;
+  }
+}
+
+async function decryptWithQpdf(
+  fileData: Uint8Array,
+  password?: string,
+  log?: (msg: string) => void
+): Promise<Uint8Array> {
+  // Check for cross-origin isolation
+  if (!window.crossOriginIsolated) {
+    log?.('Memory isolation restricted. Engine-B idle.');
+    throw new Error('ISOLATION_REQUIRED');
+  }
+
+  try {
+    log?.('Spawning WASM worker thread...');
+    const args = ['--decrypt'];
+    if (password) {
+      args.push(`--password=${password}`);
+    }
+    args.push('input.pdf', 'output.pdf');
+
+    log?.('Context loading...');
+    const qpdf = (await import('qpdf-wasm')).default;
+
+    log?.('Executing bitstream decryption...');
+    const result = await qpdf(args, [{ name: 'input.pdf', content: fileData }]);
+
+    const outputFile = result.find((f: any) => f.name === 'output.pdf');
+    if (!outputFile) throw new Error('No output signal.');
+    
+    log?.('Engine-B handshake successful.');
+    return outputFile.content;
+  } catch (error: any) {
+    log?.(`Halted: ${error?.message?.slice(0, 30)}...`);
+    throw error;
+  }
+}
+
+/**
+ * Decrypts a PDF file using a parallel racing algorithm.
+ * Spawns multiple decryption methodologies concurrently to find the fastest valid exit.
  */
 export async function decryptPDF(
   fileData: Uint8Array, 
@@ -12,70 +72,29 @@ export async function decryptPDF(
 ): Promise<Uint8Array> {
   const log = (msg: string) => onProgress?.(msg);
 
-  // 1. Try pdf-lib (Fast, No Isolation required)
+  log('Initiating Parallel Decryption Protocol (PDP)...');
+  
   try {
-    log('Initializing pdf-lib primary buffer analysis...');
-    const pdfDoc = await (PDFDocument as any).load(fileData, { 
-      password,
-      ignoreEncryption: false 
-    });
-    
-    log('Schema validation passed. Executing primary segment rewrite...');
-    // Saving it without a password effectively decrypts it if it was loaded with one
-    const saved = await pdfDoc.save();
-    log('Primary rewrite complete. Encryption layers stripped.');
-    return saved;
-  } catch (err: any) {
-    log('Primary suite fallback: Advanced encryption detected.');
-    console.log('pdf-lib failed, falling back to QPDF:', err.message);
-    // If it's a password error, we don't want to fall back to QPDF without a password anyway
-    if (err.message.includes('password')) {
-       throw err;
-    }
-  }
-
-  // 2. Fallback to QPDF WASM
-  log('Checking memory isolation requirements...');
-  // Check for cross-origin isolation
-  if (!window.crossOriginIsolated) {
-    throw new Error('MEMORY_ISOLATION_ERROR: The file requires advanced decryption. Please "Open in New Tab" to unlock.');
-  }
-
-  try {
-    log('Spawning advanced QPDF WASM worker thread...');
-    const args = ['--decrypt'];
-    if (password) {
-      args.push(`--password=${password}`);
-    }
-    args.push('input.pdf', 'output.pdf');
-
-    log('Loading WASM binary into local secure context...');
-    const qpdf = (await import('qpdf-wasm')).default;
-
-    log('Executing advanced bitstream decryption (qpdf-wasm)...');
-    // qpdf(args, files)
-    const result = await qpdf(args, [
-      { name: 'input.pdf', content: fileData }
+    // Race between different decryption methodologies
+    const winner = await Promise.any([
+      decryptWithPdfLib(fileData, password, log),
+      decryptWithQpdf(fileData, password, log)
     ]);
 
-    log('Scanning engine output buffers...');
-    const outputFile = result.find((f: any) => f.name === 'output.pdf');
-    if (!outputFile) {
-      throw new Error('Decryption failed: Output file not generated.');
+    log('Parallel match resolved. Propagating winner to output buffer.');
+    return winner;
+  } catch (aggErr: any) {
+    const errorPrefix = ' PDP Critical Fault: ';
+    if (aggErr instanceof AggregateError) {
+      const messages = aggErr.errors.map(e => e.message).join(' | ');
+      if (messages.includes('password')) {
+        throw new Error('VAULT_LOCKED: Authentication failed on all parallel engines.');
+      }
+      if (messages.includes('ISOLATION_REQUIRED')) {
+         throw new Error('MEMORY_ISOLATION_ERROR: Advanced decryption engines are locked. Please "Open in New Tab".');
+      }
+      throw new Error(`${errorPrefix} All engines reported non-zero exit status.`);
     }
-    
-    log('Advanced segment reconstruction successful.');
-    return outputFile.content;
-  } catch (error: any) {
-    console.error('QPDF Engine Error:', error);
-    
-    const message = error?.message || 'Decryption failed';
-    console.error('QPDF Engine Error:', error);
-    
-    if (message.includes('SharedArrayBuffer') || !window.crossOriginIsolated) {
-      throw new Error('MEMORY_ISOLATION_ERROR: This operation requires modern browser security features. Please "Open in New Tab" to unlock.');
-    }
-    
-    throw new Error(`Engine Error: ${message}`);
+    throw new Error(`${errorPrefix} ${aggErr.message}`);
   }
 }
