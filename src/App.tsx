@@ -111,7 +111,7 @@ export default function App() {
         addLog(`Vault Restricted: ${fileObj.name}`, 'warning');
       } else {
         setFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', error: errorMsg } : f));
-        addLog(`Critical Failure: ${fileObj.name}`, 'error');
+        addLog(`Failure: ${errorMsg.slice(0, 50)}...`, 'error');
       }
     }
   };

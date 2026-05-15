@@ -1,13 +1,32 @@
 import qpdf from 'qpdf-wasm';
+import { PDFDocument } from 'pdf-lib';
 
 /**
- * Decrypts a PDF file using qpdf-wasm.
- * This version uses the WASM binary which requires SharedArrayBuffer support.
+ * Decrypts a PDF file. 
+ * Tries pdf-lib first (no WASM/Isolation needed for standard passwords).
+ * Falls back to qpdf-wasm for advanced encryption removal.
  */
 export async function decryptPDF(fileData: Uint8Array, password?: string): Promise<Uint8Array> {
+  // 1. Try pdf-lib (Fast, No Isolation required)
+  try {
+    const pdfDoc = await PDFDocument.load(fileData, { 
+      password,
+      ignoreEncryption: false 
+    });
+    // Saving it without a password effectively decrypts it if it was loaded with one
+    return await pdfDoc.save();
+  } catch (err: any) {
+    console.log('pdf-lib failed, falling back to QPDF:', err.message);
+    // If it's a password error, we don't want to fall back to QPDF without a password anyway
+    if (err.message.includes('password')) {
+       throw err;
+    }
+  }
+
+  // 2. Fallback to QPDF WASM
   // Check for cross-origin isolation
   if (!window.crossOriginIsolated) {
-    throw new Error('SECURITY_RESTRICTION: This operation requires Cross-Origin Isolation. Please ensure the app is opened directly (new tab) and not inside the AI Studio iframe.');
+    throw new Error('MEMORY_ISOLATION_ERROR: The file requires advanced decryption. Please "Open in New Tab" to unlock.');
   }
 
   try {
@@ -32,10 +51,12 @@ export async function decryptPDF(fileData: Uint8Array, password?: string): Promi
     console.error('QPDF Engine Error:', error);
     
     const message = error?.message || 'Decryption failed';
-    if (message.includes('SharedArrayBuffer')) {
-      throw new Error('Security Error: SharedArrayBuffer is restricted. Please try opening the app in a new tab.');
+    console.error('QPDF Engine Error:', error);
+    
+    if (message.includes('SharedArrayBuffer') || !window.crossOriginIsolated) {
+      throw new Error('MEMORY_ISOLATION_ERROR: This operation requires modern browser security features. Please "Open in New Tab" to unlock.');
     }
     
-    throw new Error(message);
+    throw new Error(`Engine Error: ${message}`);
   }
 }
