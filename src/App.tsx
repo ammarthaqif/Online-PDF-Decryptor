@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, ReactNode } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Unlock, FileText, Download, X, AlertCircle, Loader2, ShieldCheck, Terminal, History, Info } from 'lucide-react';
+import { Lock, Unlock, FileText, Download, X, AlertCircle, Loader2, ShieldCheck, Terminal, History, Info, RefreshCw } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { decryptPDF } from './lib/qpdf';

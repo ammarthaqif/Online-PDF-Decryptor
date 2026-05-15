@@ -1,3 +1,5 @@
+import qpdf from 'qpdf-wasm';
+
 /**
  * Decrypts a PDF file using qpdf-wasm.
  * This version uses the WASM binary which requires SharedArrayBuffer support.
@@ -9,7 +11,6 @@ export async function decryptPDF(fileData: Uint8Array, password?: string): Promi
   }
 
   try {
-    const qpdf = (await import('qpdf-wasm')).default;
     const args = ['--decrypt'];
     if (password) {
       args.push(`--password=${password}`);
