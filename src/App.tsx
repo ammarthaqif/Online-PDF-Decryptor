@@ -44,11 +44,12 @@ export default function App() {
         time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
       },
       ...prev
-    ].slice(0, 8)); // Keep last 8 logs
+    ].slice(0, 15)); // Keep last 15 logs for researcher visibility
   }, []);
 
   useEffect(() => {
     addLog('Researcher Suite Online // Secure Mode Active', 'info');
+    addLog('System Check: AES-NI Acceleration Ready', 'info');
   }, [addLog]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -62,10 +63,10 @@ export default function App() {
     }));
     setFiles(prev => [...prev, ...newFiles]);
     if (newFiles.length > 1) {
-       addLog(`Ingested ${acceptedFiles.length} research units.`, 'success');
+       addLog(`Batch Ingestion Protocol: ${acceptedFiles.length} units mapped.`, 'success');
     } else if (newFiles.length === 1) {
        setSelectedFileId(newFiles[0].id);
-       addLog(`Ingested unit: ${newFiles[0].name}`, 'success');
+       addLog(`Ingest protocol success: ${newFiles[0].name}`, 'success');
     }
   }, [addLog]);
 
@@ -87,14 +88,20 @@ export default function App() {
     if (!fileObj) return;
 
     setFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'decrypting', error: undefined } : f));
-    addLog(`Decrypting ${fileObj.name}...`, 'info');
+    addLog(`Decrypting unit: ${fileObj.name}`, 'info');
     
     try {
+      addLog(`Mapping unit memory: ${fileObj.size} bytes`, 'info');
       const arrayBuffer = await fileObj.file.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
       
-      const decryptedData = await decryptPDF(uint8Array, customPassword || password);
+      const decryptedData = await decryptPDF(
+        uint8Array, 
+        customPassword || password,
+        (msg) => addLog(`[Engine] ${msg}`, 'info')
+      );
       
+      addLog('Reconstructing segments into Blob format...', 'info');
       const blob = new Blob([decryptedData], { type: 'application/pdf' });
       setFiles(prev => prev.map(f => f.id === id ? { 
         ...f, 
@@ -102,7 +109,7 @@ export default function App() {
         decryptedBlob: blob,
         error: undefined 
       } : f));
-      addLog(`System Bypass Success: ${fileObj.name}`, 'success');
+      addLog(`Bypass Success: ${fileObj.name}`, 'success');
     } catch (err: any) {
       const errorMsg = err?.message || 'Decryption failed';
       
