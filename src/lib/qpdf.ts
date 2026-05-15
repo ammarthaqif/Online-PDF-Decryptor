@@ -1,4 +1,3 @@
-import qpdf from 'qpdf-wasm';
 import { PDFDocument } from 'pdf-lib';
 
 /**
@@ -9,7 +8,7 @@ import { PDFDocument } from 'pdf-lib';
 export async function decryptPDF(fileData: Uint8Array, password?: string): Promise<Uint8Array> {
   // 1. Try pdf-lib (Fast, No Isolation required)
   try {
-    const pdfDoc = await PDFDocument.load(fileData, { 
+    const pdfDoc = await (PDFDocument as any).load(fileData, { 
       password,
       ignoreEncryption: false 
     });
@@ -35,6 +34,8 @@ export async function decryptPDF(fileData: Uint8Array, password?: string): Promi
       args.push(`--password=${password}`);
     }
     args.push('input.pdf', 'output.pdf');
+
+    const qpdf = (await import('qpdf-wasm')).default;
 
     // qpdf(args, files)
     const result = await qpdf(args, [
