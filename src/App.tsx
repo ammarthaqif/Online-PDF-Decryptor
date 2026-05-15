@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Unlock, FileText, Download, X, AlertCircle, Loader2, ShieldCheck, Terminal, History, Info } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { decryptPDF } from './lib/qpdf.ts';
+import { decryptPDF } from './lib/qpdf';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

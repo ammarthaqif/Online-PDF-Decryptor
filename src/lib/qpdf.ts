@@ -1,5 +1,3 @@
-import qpdf from 'qpdf-wasm';
-
 /**
  * Decrypts a PDF file using qpdf-wasm.
  * This version uses the WASM binary which requires SharedArrayBuffer support.
@@ -7,10 +5,11 @@ import qpdf from 'qpdf-wasm';
 export async function decryptPDF(fileData: Uint8Array, password?: string): Promise<Uint8Array> {
   // Check for cross-origin isolation
   if (!window.crossOriginIsolated) {
-    throw new Error('SECURITY_RESTRICTION: This operation requires Cross-Origin Isolation. Please ensure the app is opened directly and the service worker is active.');
+    throw new Error('SECURITY_RESTRICTION: This operation requires Cross-Origin Isolation. Please ensure the app is opened directly (new tab) and not inside the AI Studio iframe.');
   }
 
   try {
+    const qpdf = (await import('qpdf-wasm')).default;
     const args = ['--decrypt'];
     if (password) {
       args.push(`--password=${password}`);
