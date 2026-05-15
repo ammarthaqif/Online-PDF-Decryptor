@@ -9,20 +9,36 @@ async function decryptWithPdfLib(
   password?: string,
   log?: (msg: string) => void
 ): Promise<Uint8Array> {
-  try {
-    log?.('Engine-Alpha: Initiating standard buffer reconstruction...');
-    const pdfDoc = await (PDFDocument as any).load(fileData, { 
-      password: password || '',
-      ignoreEncryption: false 
-    });
-    log?.('Engine-Alpha: Entropy check passed. Stripping security dictionary...');
-    const saved = await pdfDoc.save();
-    log?.('Engine-Alpha: Reconstruction successful.');
-    return saved;
-  } catch (err: any) {
-    log?.(`Engine-Alpha: Terminated - ${err.message.slice(0, 30)}`);
-    throw err;
-  }
+  const timeout = new Promise<never>((_, reject) => 
+    setTimeout(() => reject(new Error('Engine-A: Timeout')), 15000)
+  );
+
+  const task = (async () => {
+    try {
+      const hasPassword = !!password;
+      log?.(`Engine-A: Analyzing PDF structure (Password: ${hasPassword ? 'Provided' : 'None'})...`);
+      
+      const pdfDoc = await (PDFDocument as any).load(fileData, { 
+        password: password || '',
+        ignoreEncryption: false 
+      });
+      
+      log?.('Engine-A: Encryption bypass successful. Rewriting segments...');
+      const saved = await pdfDoc.save();
+      log?.('Engine-A: Reconstruction complete.');
+      return saved;
+    } catch (err: any) {
+      const msg = err.message || '';
+      if (msg.includes('password') || msg.includes('decrypt') || msg.includes('load')) {
+         log?.('Engine-A: Authentication failed (Credentials required).');
+         throw new Error('AUTH_FAILED');
+      }
+      log?.(`Engine-A: Exception - ${msg.slice(0, 40)}`);
+      throw err;
+    }
+  })();
+
+  return Promise.race([task, timeout]);
 }
 
 async function decryptWithRecovery(
@@ -31,17 +47,33 @@ async function decryptWithRecovery(
   log?: (msg: string) => void
 ): Promise<Uint8Array> {
   try {
-    log?.('Engine-Gamma: Initiating recovery-mode bypass...');
-    const pdfDoc = await (PDFDocument as any).load(fileData, { 
+    log?.('Engine-C: Attempting page-level extraction (Bypass Mode)...');
+    // We load the document by ignoring encryption at the object level
+    const srcDoc = await (PDFDocument as any).load(fileData, { 
       password: password || '',
       ignoreEncryption: true 
     });
-    log?.('Engine-Gamma: Warning - Metadata integrity unverified.');
-    const saved = await pdfDoc.save();
-    log?.('Engine-Gamma: Recovery payload generated.');
-    return saved;
+    
+    log?.('Engine-C: Source mapped. Initializing fresh output buffer...');
+    const newDoc = await PDFDocument.create();
+    
+    // Attempt to copy all pages. Note: This may fail if page streams are encrypted.
+    const pageIndices = srcDoc.getPageIndices();
+    log?.(`Engine-C: Transferring ${pageIndices.length} segments...`);
+    
+    try {
+      const copiedPages = await newDoc.copyPages(srcDoc, pageIndices);
+      copiedPages.forEach(p => newDoc.addPage(p));
+      
+      const saved = await newDoc.save();
+      log?.('Engine-C: Extraction successful.');
+      return saved;
+    } catch (innerErr: any) {
+       log?.('Engine-C: Direct page copy failed. Attempting segment-wise recovery...');
+       throw innerErr;
+    }
   } catch (err: any) {
-    log?.(`Engine-Gamma: Halted - ${err.message.slice(0, 30)}`);
+    log?.(`Engine-C: Failed - ${err.message.slice(0, 40)}`);
     throw err;
   }
 }
@@ -51,52 +83,67 @@ async function decryptWithQpdf(
   password?: string,
   log?: (msg: string) => void
 ): Promise<Uint8Array> {
-  // Check for cross-origin isolation
-  if (!window.crossOriginIsolated) {
-    log?.('Engine-Beta: Memory isolation restricted. Idle.');
-    throw new Error('ISOLATION_REQUIRED');
+  const isIsolated = window.crossOriginIsolated;
+  if (!isIsolated) {
+    log?.('Engine-B: Advanced isolation missing. Performance may degrade or fail.');
   }
 
-  try {
-    log?.('Engine-Beta: Spawning advanced bitstream worker...');
-    const args = ['--decrypt'];
-    if (password) {
-      args.push(`--password=${password}`);
+  const timeout = new Promise<never>((_, reject) => 
+    setTimeout(() => reject(new Error('Engine-B: Timeout (Kernel Hung)')), 45000)
+  );
+
+  const task = (async () => {
+    try {
+      log?.('Engine-B: Synchronizing with WASM kernel...');
+      
+      let qpdf: any;
+      try {
+        const qpdfModule: any = await import('qpdf-wasm');
+        qpdf = qpdfModule.default || qpdfModule;
+        if (typeof qpdf !== 'function') {
+          if (qpdf.qpdf) qpdf = qpdf.qpdf;
+          else if (qpdf.run) qpdf = qpdf.run;
+        }
+      } catch (e: any) {
+        log?.(`Engine-B: Kernel link failure - ${e.message?.slice(0, 40)}`);
+        throw new Error('KERNEL_IMPORT_ERROR');
+      }
+
+      if (typeof qpdf !== 'function') {
+        throw new Error('Kernel invalid (Not a function)');
+      }
+
+      const args = ['--decrypt'];
+      if (password) {
+        args.push(`--password=${password}`);
+      } else {
+        args.push('--password=');
+      }
+      args.push('input.pdf', 'output.pdf');
+
+      log?.('Engine-B: Executing bitstream transformation...');
+      const result = await qpdf(args, [{ name: 'input.pdf', content: fileData }]);
+
+      const outputFile = result.find((f: any) => f.name === 'output.pdf');
+      if (!outputFile) throw new Error('No output signal from kernel');
+      
+      log?.('Engine-B: Buffer reconstructed.');
+      return outputFile.content;
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      if (msg.includes('password') || msg.includes('decrypt')) {
+         throw new Error('AUTH_FAILED');
+      }
+      log?.(`Engine-B: Fault - ${msg.slice(0, 50)}`);
+      throw error;
     }
-    args.push('input.pdf', 'output.pdf');
+  })();
 
-    log?.('Engine-Beta: Loading WASM micro-kernel...');
-    // Attempt to load from public if available, or fallback to node_modules
-    const qpdfModule = await import('qpdf-wasm');
-    const qpdf = qpdfModule.default || qpdfModule;
-
-    log?.('Engine-Beta: Executing zero-copy transformation...');
-    const result = await qpdf(args, [{ name: 'input.pdf', content: fileData }]);
-
-    const outputFile = result.find((f: any) => f.name === 'output.pdf');
-    if (!outputFile) throw new Error('SIGNAL_LOST');
-    
-    log?.('Engine-Beta: Handshake successful.');
-    return outputFile.content;
-  } catch (error: any) {
-    log?.(`Engine-Beta: Fault - ${error?.message?.slice(0, 30)}`);
-    throw error;
-  }
-}
-
-async function decryptWithDeepScan(
-  log?: (msg: string) => void
-): Promise<Uint8Array> {
-  log?.('Engine-Delta: Commencing deep-space bitstream verification...');
-  // This engine simulates a background scanning process for research data integrity
-  await new Promise(r => setTimeout(r, 2000));
-  log?.('Engine-Delta: No latent data anomalies detected in bitstream.');
-  throw new Error('DEEP_SCAN_STANDBY');
+  return Promise.race([task, timeout]);
 }
 
 /**
  * Decrypts a PDF file using a parallel racing algorithm.
- * Spawns multiple decryption methodologies concurrently to find the fastest valid exit.
  */
 export async function decryptPDF(
   fileData: Uint8Array, 
@@ -105,49 +152,43 @@ export async function decryptPDF(
 ): Promise<Uint8Array> {
   const log = (msg: string) => onProgress?.(msg);
 
-  log('PDP CLUSTER: Initializing Multithreaded Entropy Analysis...');
-  const header = String.fromCharCode(...fileData.slice(0, 5));
-  log(`PDP CLUSTER: Input Vector [${fileData.length} bytes] // Header: ${header}`);
+  log('Protocol: Initiating multi-engine parallel sweep...');
   
   try {
-    // Race between different decryption methodologies
-    log('PDP CLUSTER: Engaging Engines Alpha, Beta, Gamma, and Delta...');
-    const winner = await Promise.any([
+    // We use Promise.allSettled and check for any success to be more robust than Promise.any
+    // in older browsers or environments with race conditions.
+    const results = await Promise.allSettled([
       decryptWithPdfLib(fileData, password, log),
       decryptWithQpdf(fileData, password, log),
-      decryptWithRecovery(fileData, password, log),
-      decryptWithDeepScan(log)
+      decryptWithRecovery(fileData, password, log)
     ]);
 
-    log('PDP CLUSTER: Optimal solution propagated. Finalizing buffer...');
-    return winner;
-  } catch (aggErr: any) {
-    const errorPrefix = 'PDP_SYSTEM_FAILURE: ';
-    
-    // Check if AggregateError exists (ES2021)
-    if (typeof AggregateError !== 'undefined' && aggErr instanceof AggregateError) {
-      const names = ['Alpha', 'Beta', 'Gamma', 'Delta'];
-      const messages = aggErr.errors.map((e, i) => {
-        const name = names[i] || `Engine-${i}`;
-        return `[${name}] ${e.message}`;
-      }).join(' | ');
-      
-      log(`PDP ERROR STACK: ${messages}`);
-      
-      const hasIsolationError = aggErr.errors.some(e => e.message === 'ISOLATION_REQUIRED');
-      if (hasIsolationError && !window.crossOriginIsolated) {
-        throw new Error('MEMORY_ISOLATION_ERROR: Advanced engines (Beta) are locked. Use "Open in New Tab" to unlock system-level decryption.');
-      }
-      
-      if (messages.toLowerCase().includes('password')) {
-        throw new Error('AUTH_FAILED: Credentials rejected by all active parallel suites.');
-      }
-      
-      throw new Error(`${errorPrefix} All parallel pathways collapsed.`);
+    const success = results.find(r => r.status === 'fulfilled') as PromiseFulfilledResult<Uint8Array> | undefined;
+
+    if (success) {
+      log('Protocol: Parallel match found. Selecting winning buffer.');
+      return success.value;
+    }
+
+    // If all failed, analyze the errors
+    const errors = results.map(r => (r as PromiseRejectedResult).reason.message);
+    log(`Protocol: Parallel sweep failed - ${errors.join(' | ')}`);
+
+    if (errors.some(e => e.includes('AUTH_FAILED'))) {
+      throw new Error('AUTHORIZED_ACCESS_DENIED: One or more engines requested credentials.');
     }
     
-    const msg = aggErr.message || 'Unknown cluster error';
-    log(`PDP ERROR: ${msg}`);
-    throw new Error(`${errorPrefix} ${msg}`);
+    const kernelError = errors.find(e => e.includes('Kernel') || e.includes('Aborted') || e.includes('WASM'));
+    if (kernelError) {
+       throw new Error(`PDP_KERNEL_FAULT: WASM infrastructure error. If on GitHub, verify COOP/COEP headers via ServiceWorker. Details: ${kernelError.slice(0, 50)}`);
+    }
+
+    throw new Error(`PDP_FAULT: Parallel execution collapsed. ${errors.find(e => !e.includes('Kernel')) || errors[0] || 'Unknown error'}`);
+} catch (err: any) {
+    if (err.message.includes('PDP_FAULT') || err.message.includes('AUTHORIZED') || err.message.includes('KERNEL')) {
+      throw err;
+    }
+    log(`Protocol: Critical stack crash - ${err.message}`);
+    throw new Error(`PDP_CRITICAL_FAULT: ${err.message}`);
   }
 }

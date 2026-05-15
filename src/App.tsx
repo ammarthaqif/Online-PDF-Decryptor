@@ -113,9 +113,10 @@ export default function App() {
     } catch (err: any) {
       const errorMsg = err?.message || 'Decryption failed';
       
-      if (errorMsg.toLowerCase().includes('password') || errorMsg.toLowerCase().includes('authorized')) {
+      if (errorMsg.toLowerCase().includes('password') || errorMsg.toLowerCase().includes('authorized') || errorMsg.includes('PDFDocument.load')) {
         setFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'needs_password' } : f));
         addLog(`Vault Restricted: ${fileObj.name}`, 'warning');
+        addLog('Hint: Credentials may be required for this unit.', 'info');
       } else {
         setFiles(prev => prev.map(f => f.id === id ? { ...f, status: 'error', error: errorMsg } : f));
         addLog(`Failure: ${errorMsg.slice(0, 50)}...`, 'error');
@@ -307,9 +308,22 @@ export default function App() {
                         </button>
                       )}
                       {file.status === 'needs_password' && (
-                        <div className="px-4 py-2 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl text-[10px] font-bold uppercase tracking-tight">
-                          Locked
+                        <div className="flex gap-2">
+                           <div className="px-3 py-2 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl text-[10px] font-bold uppercase tracking-tight">
+                            Key Needed
+                          </div>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); processDecryption(file.id); }}
+                            className="bg-slate-900 text-white px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-colors"
+                          >
+                            Retry
+                          </button>
                         </div>
+                      )}
+                      {file.status === 'error' && (
+                         <div className="px-3 py-2 bg-rose-50 text-rose-500 border border-rose-100 rounded-xl text-[10px] font-bold uppercase tracking-tight max-w-[100px] truncate">
+                           Error
+                         </div>
                       )}
                     </div>
                   </motion.div>

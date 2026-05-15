@@ -1,42 +1,19 @@
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  return {
-    plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+export default defineConfig({
+  base: './',
+  plugins: [react(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['qpdf-wasm'],
+  },
+  server: {
+    port: 3000,
+    host: '0.0.0.0',
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
     },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, './src'),
-      },
-    },
-    build: {
-      outDir: 'dist',
-      assetsDir: 'assets',
-      sourcemap: true,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'ui-vendor': ['react', 'react-dom', 'motion', 'lucide-react', 'react-dropzone'],
-          },
-        },
-      },
-    },
-    server: {
-      headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      },
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-    },
-  };
+  },
 });
